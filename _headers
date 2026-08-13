@@ -1,0 +1,37 @@
+# =====================================================================
+# Cloudflare Pages custom headers
+# https://developers.cloudflare.com/pages/configuration/headers/
+# =====================================================================
+
+# ---------- Global security headers (apply to everything) ----------
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-XSS-Protection: 0
+
+# ---------- Long-lived caching for versioned/static assets ----------
+/assets/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/css/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=3600
+
+/js/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=3600
+
+# ---------- HTML: always revalidate so content updates show immediately ----------
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+# ---------- API routes: never cache ----------
+/api/*
+  Cache-Control: no-store
