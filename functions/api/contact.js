@@ -2,24 +2,16 @@
    POST /api/contact
    Cloudflare Pages Function backing the contact form on
    contact.html. Validates the submission, then sends a
-   notification email through Cloudflare Email Service's
-   REST API.
-
-   Note: this uses the REST API, not the send_email Workers
-   binding. Pages Functions do not support that binding (it's
-   Workers-only, via [[send_email]] in wrangler.toml or the
-   dashboard) — the REST API is Cloudflare's documented
-   alternative for exactly this case.
+   notification email through the Resend API.
 
    Spam defense is the honeypot field only (see the "website"
    check below, mirrored client-side in js/script.js). There
    is no CAPTCHA/bot-verification step on this endpoint.
 
    Required environment (see SETUP.md):
-     - env.CF_ACCOUNT_ID         (your Cloudflare account ID)
-     - env.CF_EMAIL_API_TOKEN    (secret — API token scoped to Email Service send)
-     - env.CONTACT_EMAIL_TO      (destination inbox)
-     - env.CONTACT_EMAIL_FROM    (must be on your Email Service domain)
+     - env.RESEND_API_KEY     (secret — API key from resend.com)
+     - env.CONTACT_EMAIL_TO   (destination inbox)
+     - env.CONTACT_EMAIL_FROM (must be on a domain verified in Resend)
    ========================================================= */
 
 function json(data, status) {
@@ -72,10 +64,9 @@ export async function onRequestPost(context) {
 
   const to = env.CONTACT_EMAIL_TO;
   const from = env.CONTACT_EMAIL_FROM;
-  const accountId = env.CF_ACCOUNT_ID;
-  const apiToken = env.CF_EMAIL_API_TOKEN;
+  const apiKey = env.RESEND_API_KEY;
 
-  if (!to || !from || !accountId || !apiToken) {
+  if (!to || !from || !apiKey) {
     return json({ error: 'Server is not configured' }, 500);
   }
 
@@ -95,25 +86,32 @@ export async function onRequestPost(context) {
     '<p><strong>Message:</strong><br>' +
     escapeHtml(message || '(no message provided)').replace(/\n/g, '<br>') + '</p>';
 
+  // The form's "email" field also accepts a phone number, but Resend
+  // rejects reply_to values that aren't a valid email address — only
+  // set it when the value actually looks like one.
+  var looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  var payload = {
+    to: [to],
+    from: from,
+    subject: 'New enquiry from ' + name,
+    text: textBody,
+    html: htmlBody
+  };
+  if (looksLikeEmail) {
+    payload.reply_to = email;
+  }
+
   let sendResp;
   try {
-    sendResp = await fetch(
-      'https://api.cloudflare.com/client/v4/accounts/' + accountId + '/email/sending/send',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + apiToken,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          to: to,
-          from: from,
-          subject: 'New enquiry from ' + name,
-          text: textBody,
-          html: htmlBody
-        })
-      }
-    );
+    sendResp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
   } catch (err) {
     return json({ error: 'Could not reach email service' }, 502);
   }

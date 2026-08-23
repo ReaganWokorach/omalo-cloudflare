@@ -1,7 +1,7 @@
 # Setup Guide — Omalo Graphics Website on Cloudflare Pages
 
 This site is fully built and tested, but a few things need setup only you
-can do (Cloudflare account, Email Service, environment variables, domain).
+can do (Cloudflare account, Resend account, environment variables, domain).
 Everything below is one-time. Follow it top to bottom before going live.
 
 ---
@@ -22,39 +22,29 @@ Everything below is one-time. Follow it top to bottom before going live.
 
 ---
 
-## 2. Turn on Cloudflare Email Service (for the contact form)
+## 2. Set up Resend (for the contact form)
 
-1. Dashboard → **Compute & AI → Email Service → Email Sending**.
-2. Select **Onboard Domain** and choose your domain. Cloudflare adds a
-   couple of DNS records automatically (SPF, DKIM, DMARC) since your domain
-   is on Cloudflare DNS.
-3. DNS changes usually complete within 5–15 minutes, but can take up to 24
-   hours to fully propagate.
-4. Verify the **destination address** you want enquiries sent to (the inbox
-   you'll actually read — e.g. your Gmail or Workspace address). You'll get
-   a confirmation email to click.
-5. Create an API token for sending: Dashboard → click your profile icon (top
-   right) → **My Profile → API Tokens → Create Token → Custom token**. Give
-   it the **Email Service Send** permission, scoped to your account. Copy
-   the token immediately — Cloudflare only shows it once.
-   > This project uses Email Service's REST API rather than the
-   > `send_email` Workers binding, because **Pages Functions don't support
-   > that binding** — it's Workers-only, whether configured via
-   > `wrangler.toml` or the dashboard. If you (or anyone editing this
-   > later) try to add `[[send_email]]` to `wrangler.toml` on a Pages
-   > project, the deploy will fail with: "Configuration file for Pages
-   > projects does not support 'send_email'". The REST API is Cloudflare's
-   > documented alternative for exactly this case, and it's what
-   > `functions/api/contact.js` already uses — no further changes needed
-   > here, just the token.
-6. Find your **Account ID**: Dashboard → any page in your account → the
-   Account ID is shown in the right-hand sidebar (or under **Workers &
-   Pages → Overview**). Copy it.
+This project sends the contact-form notification email through
+[Resend](https://resend.com) rather than Cloudflare's own Email Service —
+Resend's setup is simpler (one API key, no per-Cloudflare-account onboarding
+step) and it has a free tier that's plenty for a low-volume contact form.
 
-> **Bonus over the previous setup:** because this sends from your own
-> domain (`noreply@omalographics.com` or similar) with proper SPF/DKIM
-> from Email Service, notification emails are much less likely to land in
-> spam than a generic third-party notification sender would.
+1. Create a free account at [resend.com](https://resend.com).
+2. Dashboard → **Domains → Add Domain**, enter your domain. Resend gives you
+   a few DNS records to add (SPF, DKIM, and optionally DMARC).
+3. Add those records at your DNS provider. If your domain's DNS is on
+   Cloudflare, add them under **DNS → Records** in the Cloudflare dashboard.
+   Verification is usually quick (minutes), occasionally up to a few hours.
+4. Once the domain shows **Verified** in Resend, decide the "from" address
+   you'll send as — it just needs to be `something@yourdomain.com` on the
+   verified domain (e.g. `noreply@omalographics.com`); Resend doesn't
+   require that specific inbox to exist.
+5. Create an API key: Dashboard → **API Keys → Create API Key**. Sending
+   access is enough — no need for full account access. Copy the key
+   immediately; Resend only shows it once.
+6. Decide the destination inbox — the real address you want enquiries
+   delivered to (your Gmail, Workspace address, etc.). No verification step
+   needed on the receiving end with Resend.
 
 ---
 
@@ -64,21 +54,19 @@ Dashboard → your Pages project → **Settings → Environment variables**.
 
 | Name | Type | Value |
 |---|---|---|
-| `CONTACT_EMAIL_TO` | Plaintext | The inbox you verified in step 2 |
-| `CONTACT_EMAIL_FROM` | Plaintext | e.g. `noreply@omalographics.com` (must be on the domain you onboarded to Email Service) |
-| `CF_ACCOUNT_ID` | Plaintext | The Account ID from step 2.6 |
-| `CF_EMAIL_API_TOKEN` | **Secret (encrypt)** | The API token from step 2.5 — never commit this to the repo |
+| `CONTACT_EMAIL_TO` | Plaintext | The destination inbox from step 2.6 |
+| `CONTACT_EMAIL_FROM` | Plaintext | e.g. `noreply@omalographics.com` (must be on the domain you verified in Resend) |
+| `RESEND_API_KEY` | **Secret (encrypt)** | The API key from step 2.5 — never commit this to the repo |
 
 Set these for both **Production** and **Preview** environments. Redeploy
 after saving (env var changes need a new deployment to take effect).
 
 > `wrangler.toml` also has placeholder values for `CONTACT_EMAIL_TO` /
-> `CONTACT_EMAIL_FROM` / `CF_ACCOUNT_ID` — those are just local-dev
-> fallbacks and are safe to commit since none of them are secret. The
-> dashboard values above are what production actually uses.
-> `CF_EMAIL_API_TOKEN` must never go in `wrangler.toml` — set it only as
-> an encrypted secret in the dashboard, or via `wrangler pages secret put
-> CF_EMAIL_API_TOKEN`.
+> `CONTACT_EMAIL_FROM` — those are just local-dev fallbacks and are safe to
+> commit since neither is secret. The dashboard values above are what
+> production actually uses. `RESEND_API_KEY` must never go in
+> `wrangler.toml` — set it only as an encrypted secret in the dashboard, or
+> via `wrangler pages secret put RESEND_API_KEY`.
 
 > **Note on spam protection:** this form has no CAPTCHA (Turnstile was
 > removed earlier in this project's history). The only spam defense is a
@@ -100,8 +88,9 @@ Once steps 2–3 are done and redeployed:
    which should fix future delivery.
 3. If it doesn't arrive at all, check **Workers & Pages → your project →
    Functions → Real-time Logs** while you submit again — errors from
-   `functions/api/contact.js` (bad API token, wrong account ID, unverified
-   sender, missing env vars, etc.) show up there immediately.
+   `functions/api/contact.js` (bad API key, unverified sending domain,
+   missing env vars, etc.) show up there immediately. Resend's own
+   **Dashboard → Logs** also shows every send attempt and why it failed.
 
 ---
 
@@ -109,10 +98,11 @@ Once steps 2–3 are done and redeployed:
 
 1. Dashboard → your Pages project → **Custom domains → Set up a custom
    domain**, enter your domain.
-2. If the domain is already on Cloudflare DNS (which it will be, since
-   Email Service in step 2 requires that anyway), Cloudflare adds the
+2. If the domain's DNS is already on Cloudflare, Cloudflare adds the
    necessary DNS record and provisions HTTPS automatically — usually
-   within a few minutes.
+   within a few minutes. If DNS lives elsewhere, Cloudflare will show you a
+   record to add there instead (unrelated to the Resend records from step 2,
+   which live on the domain's DNS regardless of where it's hosted).
 3. Repeat for `www.yourdomain.com` if you want both the bare domain and
    `www` to work; Cloudflare will offer to set up the redirect.
 
@@ -149,10 +139,9 @@ working.
 
 ## 8. Quick pre-launch checklist
 
-- [ ] Email Service onboarded + destination address verified (step 2.1–2.4)
-- [ ] API token created with Email Service Send permission (step 2.5)
-- [ ] Account ID copied (step 2.6)
-- [ ] `CONTACT_EMAIL_TO` / `CONTACT_EMAIL_FROM` / `CF_ACCOUNT_ID` / `CF_EMAIL_API_TOKEN` set in Pages dashboard (step 3)
+- [ ] Resend account created, domain added and verified (step 2.1–2.3)
+- [ ] API key created with sending access (step 2.5)
+- [ ] `CONTACT_EMAIL_TO` / `CONTACT_EMAIL_FROM` / `RESEND_API_KEY` set in Pages dashboard (step 3)
 - [ ] Submitted the contact form yourself once, confirmed you receive the email — and it's not in spam (step 4)
 - [ ] Custom domain attached, site loads over `https://` (step 5)
 - [ ] Replace the social media `href="#"` placeholders in the footer with your real profile links
