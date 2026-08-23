@@ -29,22 +29,95 @@ This project sends the contact-form notification email through
 Resend's setup is simpler (one API key, no per-Cloudflare-account onboarding
 step) and it has a free tier that's plenty for a low-volume contact form.
 
-1. Create a free account at [resend.com](https://resend.com).
-2. Dashboard → **Domains → Add Domain**, enter your domain. Resend gives you
-   a few DNS records to add (SPF, DKIM, and optionally DMARC).
-3. Add those records at your DNS provider. If your domain's DNS is on
-   Cloudflare, add them under **DNS → Records** in the Cloudflare dashboard.
-   Verification is usually quick (minutes), occasionally up to a few hours.
-4. Once the domain shows **Verified** in Resend, decide the "from" address
-   you'll send as — it just needs to be `something@yourdomain.com` on the
-   verified domain (e.g. `noreply@omalographics.com`); Resend doesn't
-   require that specific inbox to exist.
-5. Create an API key: Dashboard → **API Keys → Create API Key**. Sending
-   access is enough — no need for full account access. Copy the key
-   immediately; Resend only shows it once.
-6. Decide the destination inbox — the real address you want enquiries
-   delivered to (your Gmail, Workspace address, etc.). No verification step
-   needed on the receiving end with Resend.
+There are two separate things to set up in Resend, and the form needs
+**both** before it will work: a verified domain, and an API key. Missing
+either one is the most common reason the form fails.
+
+### 2.1 Create your account
+
+Sign up at [resend.com](https://resend.com) (free, no card required). Use
+an email address you'll keep — see the note in 2.6 about why this matters
+early on.
+
+### 2.2 Add your domain
+
+1. In the left sidebar, click **Domains**.
+2. Click **Add Domain**.
+3. Enter your domain — e.g. `omalographics.com`. You can use the bare
+   domain or a subdomain (some people use `mail.omalographics.com` to keep
+   sending separate from other email on the domain — either works fine for
+   this project).
+4. Pick a region (any region close to your users is fine; it doesn't
+   affect functionality, only where Resend's sending servers sit).
+5. Click **Add**. Resend now shows you a table of DNS records to add — an
+   **MX** record, one or two **TXT** records (SPF and a Resend
+   verification record), and a **DKIM** record (TXT or CNAME depending on
+   the account). Leave this tab open — you'll copy from it in the next step.
+
+### 2.3 Add the DNS records at your domain's DNS provider
+
+Where you do this depends on who manages your domain's DNS — **not**
+necessarily Cloudflare, even though the site is hosted there:
+
+- **If your domain's DNS is on Cloudflare:** Cloudflare dashboard →
+  select the domain → **DNS → Records → Add record**. Add each row Resend
+  showed you: same **Type**, same **Name**, same **Content/Value**. For
+  the MX record, also set the **Priority** Resend gives you (commonly
+  `10`). Leave Cloudflare's proxy toggle (the orange cloud) **off/grey**
+  for these records — mail records must resolve directly, not through
+  Cloudflare's proxy.
+- **If your domain's DNS is elsewhere** (GoDaddy, Namecheap, your
+  registrar, etc.): add the same records there instead, in that
+  provider's DNS records screen.
+
+Copy every value **exactly** as Resend shows it — a trailing dot, a
+missing character, or a swapped Name/Value is the single most common
+cause of a domain staying stuck on "Pending." Resend's own guide
+recommends copy-pasting rather than retyping for this reason.
+
+### 2.4 Verify the domain
+
+1. Back on the Resend **Domains** page, click into your domain and click
+   **Verify DNS Records** (sometimes shown as **Check DNS**).
+2. Records often verify within 15 minutes, but DNS propagation can
+   occasionally take a few hours — rarely up to 72. If it's been stuck for
+   over an hour, use Resend's DNS-check tool at
+   [dns.email](https://dns.email) to confirm the records are visible
+   publicly, and compare them character-by-character against what Resend
+   asked for.
+3. Don't move on until the domain shows **Verified** — an API key will
+   work even with an unverified domain, but sending will fail (see 2.7).
+
+### 2.5 Decide your "from" address
+
+No need to create an actual inbox for this — it just needs to be
+`something@yourdomain.com` on the domain you just verified (e.g.
+`noreply@omalographics.com`). This is what goes in `CONTACT_EMAIL_FROM`.
+
+### 2.6 Create the API key
+
+1. Left sidebar → **API Keys → Create API Key**.
+2. Give it a name (e.g. "Omalo Graphics website").
+3. Permission: **Sending access** is enough — no need for full account
+   access.
+4. Click **Create**, then **copy the key immediately** — Resend only
+   displays it once. This is what goes in `RESEND_API_KEY` (as a secret,
+   step 3).
+
+### 2.7 Know the free-tier sending restriction
+
+Until your domain shows **Verified**, Resend's free tier will only
+deliver to the email address you signed up with in 2.1 — sending to any
+other `CONTACT_EMAIL_TO` will fail silently from the visitor's point of
+view (the form shows the generic error) but will show a clear rejection
+reason in **Resend Dashboard → Logs**. Once the domain is verified, you
+can send to any destination address.
+
+### 2.8 Decide the destination inbox
+
+The real address you want enquiries delivered to (your Gmail, Workspace
+address, etc.) — this is `CONTACT_EMAIL_TO`. No separate verification
+step needed here on Resend's side once your domain is verified.
 
 ---
 
@@ -54,9 +127,9 @@ Dashboard → your Pages project → **Settings → Environment variables**.
 
 | Name | Type | Value |
 |---|---|---|
-| `CONTACT_EMAIL_TO` | Plaintext | The destination inbox from step 2.6 |
+| `CONTACT_EMAIL_TO` | Plaintext | The destination inbox from step 2.8 |
 | `CONTACT_EMAIL_FROM` | Plaintext | e.g. `noreply@omalographics.com` (must be on the domain you verified in Resend) |
-| `RESEND_API_KEY` | **Secret (encrypt)** | The API key from step 2.5 — never commit this to the repo |
+| `RESEND_API_KEY` | **Secret (encrypt)** | The API key from step 2.6 — never commit this to the repo |
 
 Set these for both **Production** and **Preview** environments. Redeploy
 after saving (env var changes need a new deployment to take effect).
@@ -88,9 +161,22 @@ Once steps 2–3 are done and redeployed:
    which should fix future delivery.
 3. If it doesn't arrive at all, check **Workers & Pages → your project →
    Functions → Real-time Logs** while you submit again — errors from
-   `functions/api/contact.js` (bad API key, unverified sending domain,
-   missing env vars, etc.) show up there immediately. Resend's own
-   **Dashboard → Logs** also shows every send attempt and why it failed.
+   `functions/api/contact.js` show up there immediately. Resend's own
+   **Dashboard → Logs** also shows every send attempt and the exact
+   rejection reason, which is usually more specific than the Cloudflare log.
+
+### If the form shows "Something went wrong sending your message"
+
+That message covers every failure case, so check in this order:
+
+| Symptom in Resend Dashboard → Logs (or Cloudflare Function logs) | Cause | Fix |
+|---|---|---|
+| No log entry appears in Resend at all | `RESEND_API_KEY` isn't set, or the site wasn't redeployed after adding it | Re-check step 3, then redeploy |
+| `401 Unauthorized` / invalid API key | Key mistyped, or created before being copied correctly | Create a fresh key (2.6), update the Pages secret, redeploy |
+| `403` / domain not verified, or delivery only reaching your signup address | Domain still Pending, or you're sending to an address that isn't your Resend signup email | Finish domain verification (2.3–2.4); once Verified, any `CONTACT_EMAIL_TO` works |
+| `422` validation error mentioning `from` | `CONTACT_EMAIL_FROM` isn't on the verified domain, or has a typo | Match it exactly to the domain verified in 2.4 |
+| `429` rate limited | Too many test submissions in quick succession (free tier caps ~2/sec) | Wait 60 seconds and retry |
+| Cloudflare log shows `"Server is not configured"` | One of `RESEND_API_KEY` / `CONTACT_EMAIL_TO` / `CONTACT_EMAIL_FROM` is missing | Re-check all three are set in step 3 for the right environment (Production vs Preview), then redeploy |
 
 ---
 
@@ -139,8 +225,8 @@ working.
 
 ## 8. Quick pre-launch checklist
 
-- [ ] Resend account created, domain added and verified (step 2.1–2.3)
-- [ ] API key created with sending access (step 2.5)
+- [ ] Resend account created (2.1), domain added (2.2), DNS records added at the DNS provider (2.3), domain shows Verified (2.4)
+- [ ] API key created with sending access (2.6)
 - [ ] `CONTACT_EMAIL_TO` / `CONTACT_EMAIL_FROM` / `RESEND_API_KEY` set in Pages dashboard (step 3)
 - [ ] Submitted the contact form yourself once, confirmed you receive the email — and it's not in spam (step 4)
 - [ ] Custom domain attached, site loads over `https://` (step 5)
