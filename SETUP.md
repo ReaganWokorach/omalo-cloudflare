@@ -241,3 +241,14 @@ already works under `connect-src 'self'` with no CSP changes needed.
 - [ ] Replace the social media `href="#"` placeholders in the footer with your real profile links, if any still remain
 - [ ] Replace the placeholder phone numbers / email on the Contact page and in the footer with your real ones, if any still remain
 - [ ] If you get a more precise street address for the Kampala location, add it to the Contact page (locations list + map) and the footer
+
+
+
+## 7. Turnstile and Resend APIs
+For external use - Node.js on powershell
+```
+npm install -g wrangler
+wrangler login                     # opens a browser once, to authorize the CLI
+wrangler pages secret put RESEND_API_KEY --project-name=omalographics
+wrangler pages secret put TURNSTILE_SECRET_KEY --project-name=omalographics
+```
