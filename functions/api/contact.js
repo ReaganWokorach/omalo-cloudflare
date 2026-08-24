@@ -15,6 +15,10 @@
 //      ALERT_TO_EMAIL can be one address or a comma-separated list (e.g.
 //      "a@omalographics.com, b@omalographics.com, c@omalographics.com")
 //      to send the alert to more than one inbox.
+//   4. Optional but recommended: set up Cloudflare Turnstile and add
+//      TURNSTILE_SECRET_KEY as a fourth environment variable — see
+//      SETUP.md section 2.4. Until it's set, this step is skipped and
+//      the form works exactly as before (honeypot only).
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -58,6 +62,36 @@ export async function onRequestPost(context) {
   // filled, silently pretend success so bots don't learn to adapt.
   if (data.website) {
     return succeed();
+  }
+
+  // Cloudflare Turnstile (bot check). Only enforced once TURNSTILE_SECRET_KEY
+  // is configured on the Pages project, so existing deploys keep working
+  // until it's set up — see SETUP.md section 2.4. Once set, a submission
+  // with a missing/invalid token is rejected before any email is sent.
+  if (env.TURNSTILE_SECRET_KEY) {
+    const token = (data['cf-turnstile-response'] || '').toString();
+    if (!token) {
+      return fail('Please complete the verification check and try again.');
+    }
+    try {
+      const verifyRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secret: env.TURNSTILE_SECRET_KEY,
+          response: token,
+          remoteip: request.headers.get('CF-Connecting-IP') || undefined
+        })
+      });
+      const verifyResult = await verifyRes.json();
+      if (!verifyResult.success) {
+        console.error('Contact form: Turnstile verification failed:', JSON.stringify(verifyResult));
+        return fail('We could not verify you are not a robot. Please try again.', 403);
+      }
+    } catch (err) {
+      console.error('Contact form: Turnstile verification request failed:', err);
+      return fail('We could not verify you are not a robot. Please try again.', 403);
+    }
   }
 
   const name = (data.name || '').toString().trim().slice(0, 200);

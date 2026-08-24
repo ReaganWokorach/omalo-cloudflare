@@ -268,9 +268,9 @@
       }
 
       // Cloudflare Pages Function at /functions/api/contact.js. It emails
-      // the alert using Cloudflare's own Email Service — see SETUP.md for
-      // the one-time Cloudflare configuration this depends on. The
-      // function always replies with JSON, whether it succeeded or not.
+      // the alert using Resend — see SETUP.md for the one-time Cloudflare
+      // + Resend configuration this depends on. The function always
+      // replies with JSON, whether it succeeded or not.
       fetch(contactForm.getAttribute('action') || '/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -284,6 +284,7 @@
               formStatus.textContent = 'Thanks, your message has been sent. We will be in touch shortly.';
             }
             contactForm.reset();
+            if (window.turnstile) window.turnstile.reset();
           });
         })
         .catch(function (err) {
@@ -291,6 +292,7 @@
             formStatus.classList.add('is-error');
             formStatus.textContent = (err && err.message) || 'Something went wrong sending your message. Please try again, or reach us directly by phone.';
           }
+          if (window.turnstile) window.turnstile.reset();
         })
         .finally(function () {
           if (submitBtn) submitBtn.disabled = false;

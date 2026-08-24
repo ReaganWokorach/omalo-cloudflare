@@ -507,6 +507,7 @@ body.nav-open{
   position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
   clip:rect(0,0,0,0); white-space:nowrap; border:0;
 }
+.cf-turnstile{ margin-bottom: 20px; }
 .form-status{ margin-top:14px; font-size:.9rem; color: var(--green); font-weight:600; min-height: 1.2em; }
 .form-status.is-error{ color: var(--red); }
 .btn[disabled]{ opacity:.6; cursor:not-allowed; }

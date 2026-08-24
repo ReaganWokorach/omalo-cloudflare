@@ -2,14 +2,14 @@
 #
 # This is a static site (see _headers for security/cache headers) plus one
 # Pages Function at functions/api/contact.js that emails an alert via
-# Cloudflare Email Service when the contact form is submitted. See
-# SETUP.md for the one-time Cloudflare dashboard steps this depends on.
+# Resend (resend.com) when the contact form is submitted. See SETUP.md
+# for the one-time Cloudflare + Resend dashboard steps this depends on.
 #
 # NOTE: Cloudflare Pages projects do not support the `send_email` binding
 # (that's a Workers-only binding — declaring it here fails Pages' config
 # validation on deploy). So functions/api/contact.js instead calls
-# Cloudflare Email Service's REST API directly over fetch(), authenticated
-# with an API token set as a Pages environment variable. See SETUP.md.
+# Resend's REST API directly over fetch(), authenticated with an API key
+# set as a Pages environment variable (RESEND_API_KEY). See SETUP.md.
 
 name = "omalographics"
 pages_build_output_dir = "."

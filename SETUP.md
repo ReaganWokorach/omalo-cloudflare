@@ -116,10 +116,37 @@ Here's how the pieces fit together:
 > (`website`), wired up two ways — the Pages Function silently accepts
 > (but discards) any submission that fills it, since bots tend to fill
 > every field they find, and the same check also happens client-side in
-> `js/script.js` for a fast, no-network-request rejection. Between the
-> two, this covers basic and moderate bot traffic without needing a
-> CAPTCHA. If real spam gets through later, Cloudflare Turnstile (free)
-> is the natural next layer to add to the form.
+> `js/script.js` for a fast, no-network-request rejection.
+
+### 2.4 Turnstile (bot-check widget) — recommended
+
+The honeypot alone stops basic bots but not scripted/automated
+submissions. The form and Function now also support **Cloudflare
+Turnstile** (a free, invisible CAPTCHA alternative), but it's inactive
+until you set it up — nothing breaks if you skip this step, it's just
+less protected against determined spam.
+
+1. Cloudflare dashboard → **Turnstile → Add widget**.
+2. Widget settings: domain `omalographics.com` (and add the
+   `.pages.dev` domain too, so it also works before your custom domain
+   is live), widget mode **Managed** (the default — usually invisible
+   to real visitors).
+3. Turnstile gives you two keys — a **Site Key** (public) and a
+   **Secret Key** (private):
+   - Open `contact.html`, find the line with
+     `data-sitekey="REPLACE_WITH_TURNSTILE_SITE_KEY"` in the contact
+     form, and replace that placeholder with your real Site Key. This
+     is meant to be public — it's fine to commit it.
+   - Add `TURNSTILE_SECRET_KEY` as a new Pages environment variable
+     (Settings → Environment variables), same place as the Resend
+     variables from step 2.3. Mark it **Encrypt** — it's a secret.
+4. Redeploy. Once `TURNSTILE_SECRET_KEY` is set, `functions/api/contact.js`
+   starts rejecting any submission that fails the Turnstile check,
+   before it ever reaches Resend.
+
+If you'd rather not set this up right now, leave the placeholder as-is
+and skip adding `TURNSTILE_SECRET_KEY` — the form keeps working exactly
+as it does today, honeypot-only.
 
 ---
 
@@ -208,6 +235,7 @@ already works under `connect-src 'self'` with no CSP changes needed.
 - [ ] Resend account created and `omalographics.com` shows **Verified** under Domains (step 2.1)
 - [ ] Resend API key created with sending access (step 2.2)
 - [ ] `RESEND_API_KEY`, `ALERT_TO_EMAIL`, and `ALERT_FROM_EMAIL` set in Pages environment variables — `ALERT_TO_EMAIL` as a comma-separated list if using more than one inbox — and a fresh deploy triggered (step 2.3)
+- [ ] (Recommended) Turnstile site key added to `contact.html` and `TURNSTILE_SECRET_KEY` set in Pages environment variables (step 2.4)
 - [ ] Test submission received by **all** the email addresses listed in `ALERT_TO_EMAIL` (step 3)
 - [ ] Custom domain added in Pages, HTTPS shows as Active (step 4)
 - [ ] Replace the social media `href="#"` placeholders in the footer with your real profile links, if any still remain
