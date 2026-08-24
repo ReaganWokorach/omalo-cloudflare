@@ -4,19 +4,13 @@
 # Pages Function at functions/api/contact.js that emails an alert via
 # Cloudflare Email Service when the contact form is submitted. See
 # SETUP.md for the one-time Cloudflare dashboard steps this depends on.
+#
+# NOTE: Cloudflare Pages projects do not support the `send_email` binding
+# (that's a Workers-only binding — declaring it here fails Pages' config
+# validation on deploy). So functions/api/contact.js instead calls
+# Cloudflare Email Service's REST API directly over fetch(), authenticated
+# with an API token set as a Pages environment variable. See SETUP.md.
 
 name = "omalographics"
 pages_build_output_dir = "."
 compatibility_date = "2026-08-21"
-
-# Lets functions/api/contact.js call env.EMAIL.send({ to, from, subject,
-# text, html }) using Cloudflare's own Email Service — no third-party
-# email provider or API key involved. The domain used in ALERT_FROM_EMAIL
-# (a Pages environment variable, not set here) must be onboarded to Email
-# Service, and the address in ALERT_TO_EMAIL must be a verified
-# Destination Address on the account. Both are set as environment
-# variables on the Pages project (dashboard or `wrangler pages secret
-# put`) rather than hardcoded here, so they can change without a
-# redeploy.
-[[send_email]]
-name = "EMAIL"

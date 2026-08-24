@@ -2,16 +2,20 @@
 //
 // Handles submissions from the form on contact.html and emails an alert
 // using Cloudflare's own Email Service (Compute > Email Service in the
-// dashboard) via the `EMAIL` send_email binding declared in wrangler.toml.
-// No third-party email service or API key is used — everything happens
-// inside Cloudflare.
+// dashboard), called over its REST API. Pages Functions can't use the
+// `send_email` Workers binding (Pages projects don't support that
+// binding at all), so this calls
+// https://api.cloudflare.com/client/v4/accounts/{account_id}/email/sending/send
+// directly with a scoped API token instead. No third-party email service
+// is used — everything still happens inside Cloudflare.
 //
 // One-time setup this depends on (all in the Cloudflare dashboard) is
 // documented in SETUP.md:
 //   1. Onboard your domain to Email Service (Email Sending).
 //   2. Verify the inbox you want alerts sent to as a Destination Address.
-//   3. Set the ALERT_TO_EMAIL and ALERT_FROM_EMAIL environment variables
-//      on the Pages project.
+//   3. Create an API token with "Email Sending: Edit" permission.
+//   4. Set the ALERT_TO_EMAIL, ALERT_FROM_EMAIL, CF_ACCOUNT_ID, and
+//      CF_EMAIL_API_TOKEN environment variables on the Pages project.
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -68,9 +72,11 @@ export async function onRequestPost(context) {
 
   const toAddress = env.ALERT_TO_EMAIL;
   const fromAddress = env.ALERT_FROM_EMAIL;
+  const accountId = env.CF_ACCOUNT_ID;
+  const apiToken = env.CF_EMAIL_API_TOKEN;
 
-  if (!toAddress || !fromAddress || !env.EMAIL) {
-    console.error('Contact form: ALERT_TO_EMAIL / ALERT_FROM_EMAIL / EMAIL binding not configured.');
+  if (!toAddress || !fromAddress || !accountId || !apiToken) {
+    console.error('Contact form: ALERT_TO_EMAIL / ALERT_FROM_EMAIL / CF_ACCOUNT_ID / CF_EMAIL_API_TOKEN not configured.');
     return fail(
       'The contact form is not fully set up yet. Please reach us by phone or WhatsApp in the meantime.',
       500
@@ -100,7 +106,7 @@ export async function onRequestPost(context) {
   try {
     const sendPayload = {
       to: toAddress,
-      from: { email: fromAddress, name: 'Omalo Graphics Website' },
+      from: fromAddress,
       subject: 'New contact form enquiry from ' + name,
       text,
       html
@@ -108,9 +114,29 @@ export async function onRequestPost(context) {
     // Only set a reply-to when the visitor gave something that looks like
     // an email address (the field also accepts a phone number).
     if (reach.indexOf('@') !== -1) {
-      sendPayload.replyTo = reach;
+      sendPayload.reply_to = reach;
     }
-    await env.EMAIL.send(sendPayload);
+
+    const apiResponse = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/email/sending/send`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(sendPayload)
+      }
+    );
+
+    const apiResult = await apiResponse.json();
+    if (!apiResponse.ok || !apiResult.success) {
+      console.error('Contact form: Email Service API error:', JSON.stringify(apiResult.errors || apiResult));
+      return fail(
+        'Something went wrong sending your message. Please try again, or reach us directly by phone.',
+        502
+      );
+    }
   } catch (err) {
     console.error('Contact form: email send failed:', err);
     return fail(

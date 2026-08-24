@@ -24,10 +24,9 @@ form alert. One dashboard, no third-party services, no extra accounts.
      already committed as-is (CSS/JS are pre-minified).
    - **Build output directory:** `/` (the repo root)
 4. Deploy. Your site is live at `<project-name>.pages.dev` right away.
-5. This project also ships a `wrangler.toml`, which declares the `EMAIL`
-   binding the contact form depends on (step 2 below). Cloudflare Pages
-   reads this automatically on deploy — you don't need to run any
-   `wrangler` commands yourself unless you want to test locally.
+5. This project also ships a `wrangler.toml` with basic project settings.
+   You don't need to run any `wrangler` commands yourself unless you want
+   to test locally — Cloudflare Pages reads it automatically on deploy.
 
 ---
 
@@ -37,15 +36,16 @@ Unlike Netlify, Cloudflare Pages doesn't have a built-in form-to-email
 feature — instead this site includes its own small Pages Function at
 `functions/api/contact.js`, which sends the alert using **Cloudflare
 Email Service** (Compute → Email Service in the dashboard). This keeps
-everything inside Cloudflare: no SendGrid, Resend, Mailgun or API key
-from anywhere else.
+everything inside Cloudflare — no SendGrid, Resend, or Mailgun — though
+it does need one Cloudflare API token (step 2.3 below), since Pages
+Functions can't use the Email Service Workers binding directly.
 
 Here's how the pieces fit together:
 
 - `contact.html`'s form posts to `/api/contact`.
 - `functions/api/contact.js` (a Cloudflare Pages Function) receives that
-  submission, checks the honeypot field, and calls Cloudflare's Email
-  Service through the `EMAIL` binding declared in `wrangler.toml`.
+  submission, checks the honeypot field, and calls Cloudflare Email
+  Service's REST API over `fetch()`, authenticated with an API token.
 - Email Service actually sends the email, from an address on your
   domain, to the inbox you want alerts sent to.
 
@@ -67,7 +67,16 @@ Here's how the pieces fit together:
 2. Only verified destination addresses can receive mail sent through the
    binding, so this step is required, not optional.
 
-### 2.3 Set the two environment variables the function needs
+### 2.3 Create an API token for the Function to send with
+
+1. Cloudflare dashboard → click your profile icon (top right) →
+   **My Profile → API Tokens → Create Token**.
+2. Use **Create Custom Token**. Give it a name (e.g.
+   `omalo-contact-form-email`), and under **Permissions** add
+   **Email Sending → Edit** (scoped to your account).
+3. Create it and copy the token now — Cloudflare only shows it once.
+
+### 2.4 Set the environment variables the function needs
 
 1. Cloudflare dashboard → your Pages project → **Settings →
    Environment variables**.
@@ -79,6 +88,10 @@ Here's how the pieces fit together:
      2.1, e.g. `alerts@omalographics.com` (it doesn't need to be a real
      mailbox — it's just the "from" address Email Service is allowed to
      send as, because the domain is onboarded)
+   - `CF_ACCOUNT_ID` → your Cloudflare account ID (dashboard → any
+     domain's Overview page, in the right sidebar)
+   - `CF_EMAIL_API_TOKEN` → the token you created in step 2.3. Mark this
+     one **Encrypt** so it's stored as a secret, not shown in plain text.
 3. Redeploy (or trigger a new deploy) so the Function picks up the new
    variables — Pages Functions read environment variables at request
    time, but a fresh deploy is the simplest way to make sure they're
@@ -106,8 +119,8 @@ Once step 2 is done and the site is deployed:
 3. If it doesn't arrive:
    - Cloudflare dashboard → your Pages project → **Functions** (or the
      **Logs** tab) — check for errors from `/api/contact`. The function
-     logs a clear message if `ALERT_TO_EMAIL`, `ALERT_FROM_EMAIL`, or the
-     `EMAIL` binding aren't set up correctly.
+     logs a clear message if `ALERT_TO_EMAIL`, `ALERT_FROM_EMAIL`,
+     `CF_ACCOUNT_ID`, or `CF_EMAIL_API_TOKEN` aren't set up correctly.
    - Double-check the destination address is actually verified (Email
      Service → Destination Addresses) and that the domain shows as fully
      onboarded under Email Sending.
@@ -177,7 +190,8 @@ already works under `connect-src 'self'` with no CSP changes needed.
 - [ ] Site deployed on Cloudflare Pages and loading at the `.pages.dev` URL (step 1)
 - [ ] Domain onboarded to Email Service and DNS records confirmed (step 2.1)
 - [ ] Alert inbox added and verified as a Destination Address (step 2.2)
-- [ ] `ALERT_TO_EMAIL` and `ALERT_FROM_EMAIL` set in Pages environment variables, and a fresh deploy triggered (step 2.3)
+- [ ] API token created with Email Sending: Edit permission (step 2.3)
+- [ ] `ALERT_TO_EMAIL`, `ALERT_FROM_EMAIL`, `CF_ACCOUNT_ID`, and `CF_EMAIL_API_TOKEN` set in Pages environment variables, and a fresh deploy triggered (step 2.4)
 - [ ] Test submission received by email (step 3)
 - [ ] Custom domain added in Pages, HTTPS shows as Active (step 4)
 - [ ] Replace the social media `href="#"` placeholders in the footer with your real profile links, if any still remain
