@@ -142,7 +142,7 @@ p:last-child{ margin-bottom:0; }
   border-bottom: 1px solid rgba(23,26,21,.08);
 }
 .header-inner{ display:flex; align-items:center; justify-content:space-between; height:76px; }
-.brand-logo{ height:48px; width:auto; }
+.brand-logo{ height:60px; width:auto; filter: brightness(1.15) saturate(1.08); }
 .main-nav{ display:flex; align-items:center; gap: 28px; }
 .main-nav a{ font-size:.94rem; font-weight:600; color: var(--ink); padding: 6px 2px; position:relative; }
 .main-nav a::after{
