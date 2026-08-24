@@ -267,26 +267,29 @@
         formStatus.textContent = 'Sending…';
       }
 
-      fetch('/api/contact', {
+      // Cloudflare Pages Function at /functions/api/contact.js. It emails
+      // the alert using Cloudflare's own Email Service — see SETUP.md for
+      // the one-time Cloudflare configuration this depends on. The
+      // function always replies with JSON, whether it succeeded or not.
+      fetch(contactForm.getAttribute('action') || '/api/contact', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify(payload)
       })
         .then(function (res) {
-          if (!res.ok) throw new Error('Request failed');
-          return res.json().catch(function () { return {}; });
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Request failed');
+            if (formStatus) {
+              formStatus.classList.remove('is-error');
+              formStatus.textContent = 'Thanks, your message has been sent. We will be in touch shortly.';
+            }
+            contactForm.reset();
+          });
         })
-        .then(function () {
-          if (formStatus) {
-            formStatus.classList.remove('is-error');
-            formStatus.textContent = 'Thanks, your message has been sent. We will be in touch shortly.';
-          }
-          contactForm.reset();
-        })
-        .catch(function () {
+        .catch(function (err) {
           if (formStatus) {
             formStatus.classList.add('is-error');
-            formStatus.textContent = 'Something went wrong sending your message. Please try again, or reach us directly by phone.';
+            formStatus.textContent = (err && err.message) || 'Something went wrong sending your message. Please try again, or reach us directly by phone.';
           }
         })
         .finally(function () {

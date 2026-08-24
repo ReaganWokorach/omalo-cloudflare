@@ -32,6 +32,6 @@
 /
   Cache-Control: public, max-age=0, must-revalidate
 
-# ---------- API routes: never cache ----------
+# ---------- Contact form endpoint: never cache a POST-only API route ----------
 /api/*
   Cache-Control: no-store

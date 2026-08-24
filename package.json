@@ -2,7 +2,7 @@
   "name": "omalo-graphics-website",
   "private": true,
   "version": "1.0.0",
-  "description": "Omalo Graphics Centre Ltd website — static site deployed on Cloudflare Pages.",
+  "description": "Omalo Graphics Centre Ltd website — static site deployed on Cloudflare Pages, with a Pages Function for the contact form.",
   "scripts": {
     "minify": "cleancss -o css/styles.min.css css/styles.css && terser js/script.js -o js/script.min.js --compress --mangle"
   },
