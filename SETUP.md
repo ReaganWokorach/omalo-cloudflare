@@ -59,13 +59,19 @@ Here's how the pieces fit together:
    sending (SPF/DKIM-style records) — this happens automatically since
    Cloudflare manages your DNS.
 
-### 2.2 Verify the inbox that should receive alerts
+### 2.2 Verify the inbox(es) that should receive alerts
 
-1. Still in **Email Service**, add and verify a **Destination Address** —
-   the real inbox you check (Gmail, Workspace, whatever). You'll get a
-   confirmation email with a verification link; click it.
-2. Only verified destination addresses can receive mail sent through the
-   binding, so this step is required, not optional.
+You can send the alert to **more than one inbox** — for example, so you,
+a manager, and a sales inbox all get notified of every enquiry.
+
+1. Still in **Email Service**, add and verify a **Destination Address**
+   for each inbox you want alerts to reach — the real inboxes you check
+   (Gmail, Workspace, whatever). You'll get a confirmation email at each
+   address with a verification link; click it.
+2. Only verified destination addresses can receive mail sent through
+   Email Service, so this step is required for **every** inbox you list
+   in `ALERT_TO_EMAIL` below — an unverified address is silently
+   dropped from delivery, not bounced with an error you'd notice.
 
 ### 2.3 Create an API token for the Function to send with
 
@@ -82,8 +88,14 @@ Here's how the pieces fit together:
    Environment variables**.
 2. Add for **Production** (and Preview, if you want test deploys to work
    too):
-   - `ALERT_TO_EMAIL` → the inbox you verified in step 2.2, e.g.
-     `you@gmail.com`
+   - `ALERT_TO_EMAIL` → the inbox(es) you verified in step 2.2.
+     - One address: `you@gmail.com`
+     - **Multiple addresses** (e.g. all three of your inboxes): separate
+       them with commas in a single value, e.g.
+       `owner@gmail.com, manager@gmail.com, sales@gmail.com`
+       The Function splits this on commas itself, so every address
+       listed gets the alert — you don't need to duplicate the
+       variable or add extra config for this.
    - `ALERT_FROM_EMAIL` → an address on the domain you onboarded in step
      2.1, e.g. `alerts@omalographics.com` (it doesn't need to be a real
      mailbox — it's just the "from" address Email Service is allowed to
@@ -96,6 +108,17 @@ Here's how the pieces fit together:
    variables — Pages Functions read environment variables at request
    time, but a fresh deploy is the simplest way to make sure they're
    attached.
+
+> **Why you're seeing "The contact form is not fully set up yet"**
+> right now: this is the Function's deliberate, friendly error for
+> exactly one situation — one or more of `ALERT_TO_EMAIL`,
+> `ALERT_FROM_EMAIL`, `CF_ACCOUNT_ID`, or `CF_EMAIL_API_TOKEN` isn't
+> set on the Pages project yet (or a deploy hasn't happened since you
+> set them). It's not a bug — the form and Function are already built
+> and working, they're just waiting on steps 2.1–2.4 above to be
+> completed once in the Cloudflare dashboard. Once all four variables
+> are set and you've redeployed, this message goes away and real
+> submissions send normally.
 
 > **Note on spam protection:** the form has a hidden honeypot field
 > (`website`), wired up two ways — the Pages Function silently accepts
@@ -189,10 +212,10 @@ already works under `connect-src 'self'` with no CSP changes needed.
 
 - [ ] Site deployed on Cloudflare Pages and loading at the `.pages.dev` URL (step 1)
 - [ ] Domain onboarded to Email Service and DNS records confirmed (step 2.1)
-- [ ] Alert inbox added and verified as a Destination Address (step 2.2)
+- [ ] Every alert inbox added and verified as a Destination Address (step 2.2)
 - [ ] API token created with Email Sending: Edit permission (step 2.3)
-- [ ] `ALERT_TO_EMAIL`, `ALERT_FROM_EMAIL`, `CF_ACCOUNT_ID`, and `CF_EMAIL_API_TOKEN` set in Pages environment variables, and a fresh deploy triggered (step 2.4)
-- [ ] Test submission received by email (step 3)
+- [ ] `ALERT_TO_EMAIL`, `ALERT_FROM_EMAIL`, `CF_ACCOUNT_ID`, and `CF_EMAIL_API_TOKEN` set in Pages environment variables — `ALERT_TO_EMAIL` as a comma-separated list if using more than one inbox — and a fresh deploy triggered (step 2.4)
+- [ ] Test submission received by **all** the email addresses listed in `ALERT_TO_EMAIL` (step 3)
 - [ ] Custom domain added in Pages, HTTPS shows as Active (step 4)
 - [ ] Replace the social media `href="#"` placeholders in the footer with your real profile links, if any still remain
 - [ ] Replace the placeholder phone numbers / email on the Contact page and in the footer with your real ones, if any still remain

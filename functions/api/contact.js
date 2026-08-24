@@ -16,6 +16,9 @@
 //   3. Create an API token with "Email Sending: Edit" permission.
 //   4. Set the ALERT_TO_EMAIL, ALERT_FROM_EMAIL, CF_ACCOUNT_ID, and
 //      CF_EMAIL_API_TOKEN environment variables on the Pages project.
+//      ALERT_TO_EMAIL can be one address or a comma-separated list (e.g.
+//      "a@omalographics.com, b@omalographics.com, c@omalographics.com")
+//      to send the alert to more than one inbox.
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -70,12 +73,20 @@ export async function onRequestPost(context) {
     return fail('Please include your name and a way to reach you.');
   }
 
-  const toAddress = env.ALERT_TO_EMAIL;
+  // ALERT_TO_EMAIL can be a single address or a comma-separated list, e.g.
+  // "owner@omalographics.com, manager@omalographics.com, sales@omalographics.com"
+  // — split it into an array so the alert goes to all of them. Cloudflare
+  // Email Service's REST API accepts `to` as either a single string or an
+  // array of up to 50 addresses (combined with cc/bcc).
+  const toAddresses = (env.ALERT_TO_EMAIL || '')
+    .split(',')
+    .map((addr) => addr.trim())
+    .filter(Boolean);
   const fromAddress = env.ALERT_FROM_EMAIL;
   const accountId = env.CF_ACCOUNT_ID;
   const apiToken = env.CF_EMAIL_API_TOKEN;
 
-  if (!toAddress || !fromAddress || !accountId || !apiToken) {
+  if (toAddresses.length === 0 || !fromAddress || !accountId || !apiToken) {
     console.error('Contact form: ALERT_TO_EMAIL / ALERT_FROM_EMAIL / CF_ACCOUNT_ID / CF_EMAIL_API_TOKEN not configured.');
     return fail(
       'The contact form is not fully set up yet. Please reach us by phone or WhatsApp in the meantime.',
@@ -105,7 +116,7 @@ export async function onRequestPost(context) {
 
   try {
     const sendPayload = {
-      to: toAddress,
+      to: toAddresses,
       from: fromAddress,
       subject: 'New contact form enquiry from ' + name,
       text,
