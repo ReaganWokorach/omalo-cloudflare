@@ -1,21 +1,17 @@
 // Cloudflare Pages Function — POST /api/contact
 //
 // Handles submissions from the form on contact.html and emails an alert
-// using Cloudflare's own Email Service (Compute > Email Service in the
-// dashboard), called over its REST API. Pages Functions can't use the
-// `send_email` Workers binding (Pages projects don't support that
-// binding at all), so this calls
-// https://api.cloudflare.com/client/v4/accounts/{account_id}/email/sending/send
-// directly with a scoped API token instead. No third-party email service
-// is used — everything still happens inside Cloudflare.
+// using Resend (resend.com), called over its REST API at
+// https://api.resend.com/emails. Resend's free plan covers this
+// comfortably (3,000 emails/month, 100/day) and needs no Cloudflare
+// Workers Paid plan — only a Resend account and one API key.
 //
-// One-time setup this depends on (all in the Cloudflare dashboard) is
-// documented in SETUP.md:
-//   1. Onboard your domain to Email Service (Email Sending).
-//   2. Verify the inbox you want alerts sent to as a Destination Address.
-//   3. Create an API token with "Email Sending: Edit" permission.
-//   4. Set the ALERT_TO_EMAIL, ALERT_FROM_EMAIL, CF_ACCOUNT_ID, and
-//      CF_EMAIL_API_TOKEN environment variables on the Pages project.
+// One-time setup this depends on (documented in full in SETUP.md):
+//   1. Create a free Resend account and verify your sending domain
+//      (adds a few DNS records — Resend walks you through them).
+//   2. Create an API key in Resend.
+//   3. Set the RESEND_API_KEY, ALERT_TO_EMAIL, and ALERT_FROM_EMAIL
+//      environment variables on the Pages project.
 //      ALERT_TO_EMAIL can be one address or a comma-separated list (e.g.
 //      "a@omalographics.com, b@omalographics.com, c@omalographics.com")
 //      to send the alert to more than one inbox.
@@ -75,19 +71,17 @@ export async function onRequestPost(context) {
 
   // ALERT_TO_EMAIL can be a single address or a comma-separated list, e.g.
   // "owner@omalographics.com, manager@omalographics.com, sales@omalographics.com"
-  // — split it into an array so the alert goes to all of them. Cloudflare
-  // Email Service's REST API accepts `to` as either a single string or an
-  // array of up to 50 addresses (combined with cc/bcc).
+  // — split it into an array so the alert goes to all of them. Resend's
+  // REST API accepts `to` as either a single string or an array.
   const toAddresses = (env.ALERT_TO_EMAIL || '')
     .split(',')
     .map((addr) => addr.trim())
     .filter(Boolean);
   const fromAddress = env.ALERT_FROM_EMAIL;
-  const accountId = env.CF_ACCOUNT_ID;
-  const apiToken = env.CF_EMAIL_API_TOKEN;
+  const apiKey = env.RESEND_API_KEY;
 
-  if (toAddresses.length === 0 || !fromAddress || !accountId || !apiToken) {
-    console.error('Contact form: ALERT_TO_EMAIL / ALERT_FROM_EMAIL / CF_ACCOUNT_ID / CF_EMAIL_API_TOKEN not configured.');
+  if (toAddresses.length === 0 || !fromAddress || !apiKey) {
+    console.error('Contact form: ALERT_TO_EMAIL / ALERT_FROM_EMAIL / RESEND_API_KEY not configured.');
     return fail(
       'The contact form is not fully set up yet. Please reach us by phone or WhatsApp in the meantime.',
       500
@@ -128,21 +122,18 @@ export async function onRequestPost(context) {
       sendPayload.reply_to = reach;
     }
 
-    const apiResponse = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${accountId}/email/sending/send`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(sendPayload)
-      }
-    );
+    const apiResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(sendPayload)
+    });
 
     const apiResult = await apiResponse.json();
-    if (!apiResponse.ok || !apiResult.success) {
-      console.error('Contact form: Email Service API error:', JSON.stringify(apiResult.errors || apiResult));
+    if (!apiResponse.ok || !apiResult.id) {
+      console.error('Contact form: Resend API error:', JSON.stringify(apiResult));
       return fail(
         'Something went wrong sending your message. Please try again, or reach us directly by phone.',
         502

@@ -4,10 +4,12 @@ This site is fully built and tested, but a few things need setup only you
 can do (Cloudflare account, form alert email, domain linking). Everything
 below is one-time. Follow it top to bottom before going live.
 
-Since the domain is already registered through Cloudflare, this setup is
-now all in one place: Cloudflare Pages hosts the site, Cloudflare DNS
-points the domain at it, and Cloudflare Email Service sends the contact
-form alert. One dashboard, no third-party services, no extra accounts.
+Since the domain is already registered through Cloudflare, hosting and
+DNS stay in one place: Cloudflare Pages hosts the site and Cloudflare
+DNS points the domain at it. The contact form's email alert is sent
+through **Resend** (resend.com) — a free, developer-friendly email API
+that's simpler to set up and monitor than Cloudflare's own Email
+Service, at no cost for this site's volume.
 
 ---
 
@@ -32,78 +34,69 @@ form alert. One dashboard, no third-party services, no extra accounts.
 
 ## 2. Turn on the contact form's email alert
 
-Unlike Netlify, Cloudflare Pages doesn't have a built-in form-to-email
-feature — instead this site includes its own small Pages Function at
-`functions/api/contact.js`, which sends the alert using **Cloudflare
-Email Service** (Compute → Email Service in the dashboard). This keeps
-everything inside Cloudflare — no SendGrid, Resend, or Mailgun — though
-it does need one Cloudflare API token (step 2.3 below), since Pages
-Functions can't use the Email Service Workers binding directly.
+Cloudflare Pages doesn't have a built-in form-to-email feature — instead
+this site includes its own small Pages Function at
+`functions/api/contact.js`, which sends the alert using **Resend**
+(resend.com). Resend's free plan is generous for a site like this
+(3,000 emails/month, 100/day), gives you a dashboard of every send with
+delivery status, and needs only one API key — no Cloudflare-side email
+product to configure at all.
 
 Here's how the pieces fit together:
 
 - `contact.html`'s form posts to `/api/contact`.
 - `functions/api/contact.js` (a Cloudflare Pages Function) receives that
-  submission, checks the honeypot field, and calls Cloudflare Email
-  Service's REST API over `fetch()`, authenticated with an API token.
-- Email Service actually sends the email, from an address on your
-  domain, to the inbox you want alerts sent to.
+  submission, checks the honeypot field, and calls Resend's REST API
+  (`https://api.resend.com/emails`) over `fetch()`, authenticated with
+  an API key.
+- Resend sends the email, from an address on your domain, to the
+  inbox(es) you want alerts sent to.
 
-### 2.1 Onboard your domain to Email Service
+### 2.1 Create a free Resend account and verify your domain
 
-1. Cloudflare dashboard → **Compute → Email Service → Email Sending →
-   Onboard Domain**.
-2. Choose `omalographics.com` (must already be on Cloudflare DNS, which
-   it is, since it's registered there).
-3. Follow the prompts to confirm the DNS records Cloudflare adds for
-   sending (SPF/DKIM-style records) — this happens automatically since
-   Cloudflare manages your DNS.
+1. Go to [resend.com](https://resend.com) and sign up (free, no card
+   required).
+2. In the Resend dashboard → **Domains → Add Domain**, enter
+   `omalographics.com`.
+3. Resend shows you a handful of DNS records to add (SPF, DKIM, and a
+   tracking/return-path record). Add these in the Cloudflare dashboard
+   → your domain → **DNS → Records** — copy each record's type, name,
+   and value exactly as Resend shows them.
+4. Back in Resend, click **Verify DNS Records**. This can take a few
+   minutes to a few hours to propagate; Resend shows a green
+   **Verified** status once it's done. Test sends will fail with an
+   error until this shows Verified.
 
-### 2.2 Verify the inbox(es) that should receive alerts
+### 2.2 Create an API key
 
-You can send the alert to **more than one inbox** — for example, so you,
-a manager, and a sales inbox all get notified of every enquiry.
+1. Resend dashboard → **API Keys → Create API Key**.
+2. Name it something like `omalo-contact-form`, and set permission to
+   **Sending access** (it doesn't need full account access).
+3. Copy the key now — Resend only shows it once.
 
-1. Still in **Email Service**, add and verify a **Destination Address**
-   for each inbox you want alerts to reach — the real inboxes you check
-   (Gmail, Workspace, whatever). You'll get a confirmation email at each
-   address with a verification link; click it.
-2. Only verified destination addresses can receive mail sent through
-   Email Service, so this step is required for **every** inbox you list
-   in `ALERT_TO_EMAIL` below — an unverified address is silently
-   dropped from delivery, not bounced with an error you'd notice.
-
-### 2.3 Create an API token for the Function to send with
-
-1. Cloudflare dashboard → click your profile icon (top right) →
-   **My Profile → API Tokens → Create Token**.
-2. Use **Create Custom Token**. Give it a name (e.g.
-   `omalo-contact-form-email`), and under **Permissions** add
-   **Email Sending → Edit** (scoped to your account).
-3. Create it and copy the token now — Cloudflare only shows it once.
-
-### 2.4 Set the environment variables the function needs
+### 2.3 Set the environment variables the function needs
 
 1. Cloudflare dashboard → your Pages project → **Settings →
    Environment variables**.
 2. Add for **Production** (and Preview, if you want test deploys to work
    too):
-   - `ALERT_TO_EMAIL` → the inbox(es) you verified in step 2.2.
+   - `RESEND_API_KEY` → the key you created in step 2.2. Mark this one
+     **Encrypt** so it's stored as a secret, not shown in plain text.
+   - `ALERT_TO_EMAIL` → the inbox(es) you want alerts sent to.
      - One address: `you@gmail.com`
      - **Multiple addresses** (e.g. all three of your inboxes): separate
        them with commas in a single value, e.g.
        `owner@gmail.com, manager@gmail.com, sales@gmail.com`
        The Function splits this on commas itself, so every address
        listed gets the alert — you don't need to duplicate the
-       variable or add extra config for this.
-   - `ALERT_FROM_EMAIL` → an address on the domain you onboarded in step
+       variable or add extra config for this. Unlike Cloudflare's own
+       Email Service, Resend does **not** require you to individually
+       verify each destination inbox — any address works as soon as
+       your sending domain (step 2.1) is verified.
+   - `ALERT_FROM_EMAIL` → an address on the domain you verified in step
      2.1, e.g. `alerts@omalographics.com` (it doesn't need to be a real
-     mailbox — it's just the "from" address Email Service is allowed to
-     send as, because the domain is onboarded)
-   - `CF_ACCOUNT_ID` → your Cloudflare account ID (dashboard → any
-     domain's Overview page, in the right sidebar)
-   - `CF_EMAIL_API_TOKEN` → the token you created in step 2.3. Mark this
-     one **Encrypt** so it's stored as a secret, not shown in plain text.
+     mailbox — it's just the "from" address Resend is allowed to send
+     as, because the domain is verified there)
 3. Redeploy (or trigger a new deploy) so the Function picks up the new
    variables — Pages Functions read environment variables at request
    time, but a fresh deploy is the simplest way to make sure they're
@@ -111,14 +104,13 @@ a manager, and a sales inbox all get notified of every enquiry.
 
 > **Why you're seeing "The contact form is not fully set up yet"**
 > right now: this is the Function's deliberate, friendly error for
-> exactly one situation — one or more of `ALERT_TO_EMAIL`,
-> `ALERT_FROM_EMAIL`, `CF_ACCOUNT_ID`, or `CF_EMAIL_API_TOKEN` isn't
-> set on the Pages project yet (or a deploy hasn't happened since you
-> set them). It's not a bug — the form and Function are already built
-> and working, they're just waiting on steps 2.1–2.4 above to be
-> completed once in the Cloudflare dashboard. Once all four variables
-> are set and you've redeployed, this message goes away and real
-> submissions send normally.
+> exactly one situation — one or more of `RESEND_API_KEY`,
+> `ALERT_TO_EMAIL`, or `ALERT_FROM_EMAIL` isn't set on the Pages
+> project yet (or a deploy hasn't happened since you set them). It's
+> not a bug — the form and Function are already built and working,
+> they're just waiting on steps 2.1–2.3 above to be completed once.
+> Once all three variables are set and you've redeployed, this message
+> goes away and real submissions send normally.
 
 > **Note on spam protection:** the form has a hidden honeypot field
 > (`website`), wired up two ways — the Pages Function silently accepts
@@ -137,16 +129,18 @@ Once step 2 is done and the site is deployed:
 
 1. Open your live URL → Contact page → submit the form yourself with a
    real message.
-2. Confirm the email alert arrives at the inbox you set as
+2. Confirm the email alert arrives at every inbox listed in
    `ALERT_TO_EMAIL`.
 3. If it doesn't arrive:
+   - Resend dashboard → **Logs** (or **Emails**) — every send attempt
+     shows up here with its delivery status, which is often the fastest
+     way to see what happened (sent, bounced, blocked, etc.).
    - Cloudflare dashboard → your Pages project → **Functions** (or the
      **Logs** tab) — check for errors from `/api/contact`. The function
-     logs a clear message if `ALERT_TO_EMAIL`, `ALERT_FROM_EMAIL`,
-     `CF_ACCOUNT_ID`, or `CF_EMAIL_API_TOKEN` aren't set up correctly.
-   - Double-check the destination address is actually verified (Email
-     Service → Destination Addresses) and that the domain shows as fully
-     onboarded under Email Sending.
+     logs a clear message if `RESEND_API_KEY`, `ALERT_TO_EMAIL`, or
+     `ALERT_FROM_EMAIL` aren't set up correctly.
+   - Double-check your domain shows **Verified** in Resend → Domains —
+     sends fail until it does.
    - Check spam in the alert inbox.
 
 **If submissions fail outright:** open your browser's dev tools →
@@ -211,10 +205,9 @@ already works under `connect-src 'self'` with no CSP changes needed.
 ## 7. Quick pre-launch checklist
 
 - [ ] Site deployed on Cloudflare Pages and loading at the `.pages.dev` URL (step 1)
-- [ ] Domain onboarded to Email Service and DNS records confirmed (step 2.1)
-- [ ] Every alert inbox added and verified as a Destination Address (step 2.2)
-- [ ] API token created with Email Sending: Edit permission (step 2.3)
-- [ ] `ALERT_TO_EMAIL`, `ALERT_FROM_EMAIL`, `CF_ACCOUNT_ID`, and `CF_EMAIL_API_TOKEN` set in Pages environment variables — `ALERT_TO_EMAIL` as a comma-separated list if using more than one inbox — and a fresh deploy triggered (step 2.4)
+- [ ] Resend account created and `omalographics.com` shows **Verified** under Domains (step 2.1)
+- [ ] Resend API key created with sending access (step 2.2)
+- [ ] `RESEND_API_KEY`, `ALERT_TO_EMAIL`, and `ALERT_FROM_EMAIL` set in Pages environment variables — `ALERT_TO_EMAIL` as a comma-separated list if using more than one inbox — and a fresh deploy triggered (step 2.3)
 - [ ] Test submission received by **all** the email addresses listed in `ALERT_TO_EMAIL` (step 3)
 - [ ] Custom domain added in Pages, HTTPS shows as Active (step 4)
 - [ ] Replace the social media `href="#"` placeholders in the footer with your real profile links, if any still remain
