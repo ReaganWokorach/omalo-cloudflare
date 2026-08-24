@@ -194,15 +194,8 @@
           <label for="website">Leave this field empty</label>
           <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
         </div>
-        <!--
-          Cloudflare Turnstile (bot check). REPLACE-ME: swap
-          "REPLACE_WITH_TURNSTILE_SITE_KEY" for the real site key from
-          Cloudflare dashboard -> Turnstile -> your widget (see SETUP.md
-          section 2.4). Until replaced, the widget will show an error, but
-          the rest of the form keeps working normally because the server
-          only enforces this check once TURNSTILE_SECRET_KEY is set.
-        -->
-        <div class="cf-turnstile" data-sitekey="REPLACE_WITH_TURNSTILE_SITE_KEY" data-theme="light"></div>
+        <!-- Turnstile  -->
+        <div class="cf-turnstile" data-sitekey="0x4AAAAAAEaK1cqHYIiNm7zY" data-theme="light"></div>
         <button type="submit" class="btn btn-primary btn-wide">Send Message</button>
         <p class="form-status" id="formStatus" role="status"></p>
       </form>
